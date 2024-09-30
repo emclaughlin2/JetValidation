@@ -1,0 +1,6 @@
+macro/data_dst_files/*.list
+macro/data_list_files/*.list
+macro/dst_files/*.list
+output_logs
+src/build
+src/autom4te.cache

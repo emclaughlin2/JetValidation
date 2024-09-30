@@ -1,0 +1,7 @@
+executable = JetVal.sh
+arguments = 0 $(Process) 1 runlist2.txt detroit nozero
+output = output_logs/mc_output_detroit_nozero_$(Process).out
+when_to_transfer_output = ON_EXIT
+error			= output_logs/mc_error_detroit_nozero_$(Process).err
+log = /tmp/egm2153_$(Process).log
+queue 200
