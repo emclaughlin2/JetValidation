@@ -65,6 +65,11 @@ class JetValidation : public SubsysReco
   {
     m_doTopoclusters = flag;
   }
+  void
+  doEmcalClusters(int flag)
+  {
+    m_doEmcalClusters = flag;
+  }
   /** Called during initialization.
       Typically this is where you can book histograms, and e.g.
       register them to Fun4AllServer (so they can be output to file
@@ -107,6 +112,7 @@ class JetValidation : public SubsysReco
   int m_doTruthJets;
   int m_doTruth;
   int m_doTowers;
+  int m_doEmcalClusters;
   int m_doTopoclusters;
   int m_doSeeds;
 
@@ -189,6 +195,11 @@ class JetValidation : public SubsysReco
   float truthpar_eta[100000];
   float truthpar_phi[100000];
   int truthpar_pid[100000];
+
+  int m_emcal_clsmult;
+  float m_emcal_cluster_e[10000];
+  float m_emcal_cluster_eta[10000];
+  float m_emcal_cluster_phi[10000];
 
   int m_clsmult;
   float m_cluster_e[10000];

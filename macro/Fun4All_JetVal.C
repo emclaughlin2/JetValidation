@@ -20,8 +20,8 @@
 #include <g4centrality/PHG4CentralityReco.h>
 #include <caloreco/RawClusterBuilderTopo.h>
 
-//#include <HIJetReco.C>
-#include "HIJetReco_nosub.C"
+#include <HIJetReco.C>
+//#include "HIJetReco_nosub.C"
 #include <JetValidation.h>
 
 #include <g4mbd/MbdDigitization.h>
@@ -167,6 +167,7 @@ void Fun4All_JetVal(int nEvents = 100, int seg = 0, int isSim = 0, const char *f
   cent->GetCalibrationParameters().ReadFromFile("centrality", "xml", 0, 0, string(getenv("CALIBRATIONROOT")) + string("/Centrality/"));
   se->registerSubsystem( cent );
 
+  /*
   RawClusterBuilderTopo* ClusterBuilder = new RawClusterBuilderTopo("HcalRawClusterBuilderTopo");
   ClusterBuilder->Verbosity(verbosity);
   ClusterBuilder->set_nodename("TOPOCLUSTER_ALLCALO");
@@ -181,6 +182,7 @@ void Fun4All_JetVal(int nEvents = 100, int seg = 0, int isSim = 0, const char *f
   ClusterBuilder->set_use_only_good_towers(true);
   ClusterBuilder->set_absE(true);
   se->registerSubsystem(ClusterBuilder);
+  */
   
   Enable::VERBOSITY = verbosity;
   HIJetReco();
@@ -189,9 +191,11 @@ void Fun4All_JetVal(int nEvents = 100, int seg = 0, int isSim = 0, const char *f
   myJetVal->setPtRange(7, 100);
   myJetVal->setEtaRange(-1.1, 1.1);
   myJetVal->doTruth(0);
-  if (isSim) myJetVal->doTruth(1);
+  //if (isSim) myJetVal->doTruth(1);
   myJetVal->doSeeds(0);
   myJetVal->doTowers(1);
+  //myJetVal->doTopoclusters(1);
+  myJetVal->doEmcalClusters(1);
   if (isSim) myJetVal->doTruthParticles(1);
   se->registerSubsystem(myJetVal);
 
@@ -245,6 +249,7 @@ void Fun4All_JetVal(int nEvents = 100, int seg = 0, int isSim = 0, const char *f
   se->run(nEvents);
   se->End();
   CDBInterface::instance()->Print();  // print used DB files
+  se->PrintTimer();
   gSystem->Exit(0);
   return 0;
 

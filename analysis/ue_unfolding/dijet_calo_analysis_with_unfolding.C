@@ -34,20 +34,24 @@
 
 using namespace std;
 
-R__LOAD_LIBRARY(/sphenix/user/egm2153/calib_study/JetValidation/analysis/ue_unfolding/roounfold/libRooUnfold.so)
+R__LOAD_LIBRARY(/sphenix/user/egm2153/calib_study/JetValidation/analysis/roounfold/libRooUnfold.so)
 
 void dijet_calo_analysis_with_unfolding() {
 
-	string filename = "dijet_calo_analysis_nozero_simulation_pt7cut_wAj.root";
+	string filename = "dijet_calo_analysis_waveform_topocluster_simulation_pt7cut_wAj_wntopo_copy.root";
 	std::cout << filename << std::endl;
 	TFile *out = new TFile(filename.c_str(),"RECREATE");
 	
+	float ptbins[] = {5,6,7,8,9,10,12,14,16,18,20,22,24,28,30,35,40,50,60,80};
+    int nptbins = sizeof(ptbins) / sizeof(ptbins[0]) - 1;
+
+ 
 	// event and jet histograms 
 	TH1F* h_vz = new TH1F("h_vz","",400, -100, 100);
 	TH1F* h_njet = new TH1F("h_njet","",20,0,20);
-	TH1F* h_dijetspectra = new TH1F("h_dijetspectra","",50,0,50);
-  	TH1F* h_leadjet = new TH1F("h_leadjet","",50,0,50);
-  	TH1F* h_subjet = new TH1F("h_subjet","",50,0,50);
+	TH1F* h_dijetspectra = new TH1F("h_dijetspectra","",nptbins, ptbins);
+  	TH1F* h_leadjet = new TH1F("h_leadjet","",nptbins, ptbins);
+  	TH1F* h_subjet = new TH1F("h_subjet","",nptbins, ptbins);
   	TH1F* h_leadphi = new TH1F("h_leadphi","",50,-M_PI,M_PI);
   	TH1F* h_leadeta = new TH1F("h_leadeta","",50,-1.1,1.1);
   	TH1F* h_subphi = new TH1F("h_subphi","",50,-M_PI,M_PI);
@@ -56,7 +60,7 @@ void dijet_calo_analysis_with_unfolding() {
   	TH1F* h_xj = new TH1F("h_xj","",20,0,1);
   	TH1F* h_pass_deltaphi = new TH1F("h_pass_deltaphi","",125,-2*M_PI,2*M_PI);
   	TH1F* h_pass_xj = new TH1F("h_pass_xj","",20,0,1);
-  	TH1F* h_pass_spectra = new TH1F("h_pass_spectra","",50,0,50);
+  	TH1F* h_pass_spectra = new TH1F("h_pass_spectra","",nptbins, ptbins);
   	TH2F* h_aj_ptavg = new TH2F("h_aj_ptavg","",100,0,100,100,0,1);
 
   	// reconstructed ET histograms 
@@ -69,13 +73,41 @@ void dijet_calo_analysis_with_unfolding() {
   	TH1F* h_ue_transverse = new TH1F("h_ue_transverse","",700,-20,50);
   	TH1F* h_ue_away = new TH1F("h_ue_away","",700,-20,50);
 
+  	int topo_thresholds[] = {-9999,0,100,200,300,500};
+
+  	TH1F* h_ntopo_towards[6];
+  	TH1F* h_ntopo_transverse[6];
+  	TH1F* h_ntopo_away[6];
+
+  	TH1F* h_topo_towards[6];
+  	TH1F* h_topo_transverse[6];
+  	TH1F* h_topo_away[6];
+
+  	TH2F* h_2D_topo_towards[6];
+  	TH2F* h_2D_topo_transverse[6];
+  	TH2F* h_2D_topo_away[6];
+
+  	for (int i = 0; i < 6; i++) {
+  		h_ntopo_towards[i] = new TH1F(Form("h_ntopo%d_towards",topo_thresholds[i]),"",200,0,200);
+  		h_ntopo_transverse[i] = new TH1F(Form("h_ntopo%d_transverse",topo_thresholds[i]),"",200,0,200);
+  		h_ntopo_away[i] = new TH1F(Form("h_ntopo%d_away",topo_thresholds[i]),"",200,0,200);
+
+  		h_topo_towards[i] = new TH1F(Form("h_topo%d_towards",topo_thresholds[i]),"",600,-10,50);
+  		h_topo_transverse[i] = new TH1F(Form("h_topo%d_transverse",topo_thresholds[i]),"",600,-10,50);
+  		h_topo_away[i] = new TH1F(Form("h_topo%d_away",topo_thresholds[i]),"",600,-10,50);
+
+  		h_2D_topo_towards[i] = new TH2F(Form("h_2D_topo%d_towards",topo_thresholds[i]),"",24,-1.1,1.1,32,0,M_PI);
+  		h_2D_topo_transverse[i] = new TH2F(Form("h_2D_topo%d_transverse",topo_thresholds[i]),"",24,-1.1,1.1,32,0,M_PI);
+  		h_2D_topo_away[i] = new TH2F(Form("h_2D_topo%d_away",topo_thresholds[i]),"",24,-1.1,1.1,32,0,M_PI);
+  	}
+
   	TProfile* h_ue_xj_towards = new TProfile("h_ue_xj_towards","",20,0,1);
   	TProfile* h_ue_xj_transverse = new TProfile("h_ue_xj_transverse","",20,0,1);
   	TProfile* h_ue_xj_away = new TProfile("h_ue_xj_away","",20,0,1);
 
-  	TProfile* h_ue_pt_towards = new TProfile("h_ue_pt_towards","",100,0,50);
-  	TProfile* h_ue_pt_transverse = new TProfile("h_ue_pt_transverse","",100,0,50);
-  	TProfile* h_ue_pt_away = new TProfile("h_ue_pt_away","",100,0,50);
+  	TProfile* h_ue_pt_towards = new TProfile("h_ue_pt_towards","",nptbins, ptbins);
+  	TProfile* h_ue_pt_transverse = new TProfile("h_ue_pt_transverse","",nptbins, ptbins);
+  	TProfile* h_ue_pt_away = new TProfile("h_ue_pt_away","",nptbins, ptbins);
 
   	// ET truth - reco response histograms 
   	TH1F* h_et_towards = new TH1F("h_et_towards","",700,-20,50);
@@ -101,9 +133,9 @@ void dijet_calo_analysis_with_unfolding() {
   	// ET calibration closure histograms
   	TProfile* h_truth_vs_calib = new TProfile("h_truth_vs_calib","",700,-20,50);
   	TProfile* h_ue_corr_xj = new TProfile("h_ue_corr_xj","",20,0,1);
-  	TProfile* h_ue_corr_pt = new TProfile("h_ue_corr_pt","",100,0,50);
+  	TProfile* h_ue_corr_pt = new TProfile("h_ue_corr_pt","",nptbins, ptbins);
   	TH2F* h_ue_corr_xj_2D = new TH2F("h_ue_corr_xj_2D","",20,0,1,700,-20,50);
-  	TH2F* h_ue_corr_pt_2D = new TH2F("h_ue_corr_pt_2D","",100,0,50,700,-20,50);
+  	//TH2F* h_ue_corr_pt_2D = new TH2F("h_ue_corr_pt_2D","",nptbins,ptbins,700,-20,50);
 
   	TProfile* h_truth_truth = new TProfile("h_truth_truth","",700,-20,50);
   	TProfile* h_calib_truth = new TProfile("h_calib_truth","",700,-20,50);
@@ -119,9 +151,10 @@ void dijet_calo_analysis_with_unfolding() {
     float etmin = -10;
     float etmax = 200;
     float etbins = (etmax - etmin) * 10;
-    bool doUnfolding = true;
+    bool doUnfolding = false;
    	bool sim = true;
-   	bool topoclusters = false;
+   	bool clusters = true;
+   	bool emcal_clusters = false;
 
    	// response offset and corr
    	// calo waveform 
@@ -130,7 +163,7 @@ void dijet_calo_analysis_with_unfolding() {
    	// float resp_offset = 10.4441; float resp_corr = 0.704824;
    	// calo nozero
    	float resp_offset = 2.8579; float resp_corr = 0.7513;
-   	if (topoclusters) {
+   	if (clusters) {
    		// calo waveform 
    		// resp_offset = 2.01394; resp_corr = 0.629988;
    		// calo cluster 
@@ -162,22 +195,11 @@ void dijet_calo_analysis_with_unfolding() {
  	TChain chain("T");
 
 	const char* inputDirectory = "/sphenix/tg/tg01/jets/egm2153/JetValOutput/";
-	//const char* inputDirectory = "/sphenix/user/egm2153/calib_study/jet_detroit_10GeV/";
-	//for (int i = 0; i < runlist.size(); i++) {
-	//TString wildcardPath = TString::Format("%soutput_%d_*.root", inputDirectory, runlist[i]);
-	//TString wildcardPath = TString::Format("%ssim_output_6*.root", inputDirectory);
-	//	chain.Add(wildcardPath);
-	//}
-	//TString wildcardPath = TString::Format("%soutput_runlist_012345.root", inputDirectory);
-	//TString wildcardPath = TString::Format("%ssim_calo_cluster_output.root", inputDirectory);
-	//TString wildcardPath = TString::Format("%ssim_calo_nozero_output.root", inputDirectory);
-	//TString wildcardPath = TString::Format("%ssim_run11_nopileup_calo_cluster_output.root", inputDirectory);
-	//TString wildcardPath = TString::Format("%ssim_detroit_output.root", inputDirectory);
-	//TString wildcardPath = TString::Format("%ssim_detroit_calo_cluster_output.root", inputDirectory);
-	//TString wildcardPath = TString::Format("%ssim_detroit_calo_nozero_output.root", inputDirectory);
-	//TString wildcardPath = TString::Format("%sphpythia8_detroitUE_output.root",inputDirectory);
+	TString wildcardPath = TString::Format("%ssim_topocluster_output.root", inputDirectory);
+	//TString wildcardPath = TString::Format("%ssim_calo_cluster_topocluster_output.root", inputDirectory);
+	//TString wildcardPath = TString::Format("%ssim_calo_nozero_topocluster_output.root", inputDirectory);
 	//TString wildcardPath = TString::Format("%ssim_detroit_jet10_topocluster_output.root", inputDirectory);
-	TString wildcardPath = TString::Format("%ssim_calo_nozero_topocluster_output.root", inputDirectory);
+	//TString wildcardPath = TString::Format("%sdata_topo_output.root", inputDirectory);
 
 	chain.Add(wildcardPath);
 	//chain.Add(wildcardPath1);
@@ -241,10 +263,17 @@ void dijet_calo_analysis_with_unfolding() {
 	chain.SetBranchAddress("ohcaleta",ohcaleta);
 	chain.SetBranchAddress("ohcalphi",ohcalphi);
 
-	chain.SetBranchAddress("clsmult",&clsmult);
-	chain.SetBranchAddress("cluster_e",cluster_e);
-	chain.SetBranchAddress("cluster_eta",cluster_eta);
-	chain.SetBranchAddress("cluster_phi",cluster_phi);
+	if (!emcal_clusters) {
+		chain.SetBranchAddress("clsmult",&clsmult);
+		chain.SetBranchAddress("cluster_e",cluster_e);
+		chain.SetBranchAddress("cluster_eta",cluster_eta);
+		chain.SetBranchAddress("cluster_phi",cluster_phi);
+	else {
+		chain.SetBranchAddress("clsmult",&emcal_clsmult);
+		chain.SetBranchAddress("cluster_e",emcal_cluster_e);
+		chain.SetBranchAddress("cluster_eta",emcal_cluster_eta);
+		chain.SetBranchAddress("cluster_phi",emcal_cluster_phi);
+	}
 
 	int truthpar_n = 0;
 	float truthpar_e[100000] = {0};
@@ -264,7 +293,7 @@ void dijet_calo_analysis_with_unfolding() {
     Long64_t nEntries = chain.GetEntries();
     std::cout << nEntries << std::endl;
     for (Long64_t entry = 0; entry < nEntries; ++entry) {
-    //for (Long64_t entry = 0; entry < 200000; ++entry) {
+    //for (Long64_t entry = 0; entry < 100000; ++entry) {
         chain.GetEntry(entry);
     	if (eventnumber % 10000 == 0) cout << "event " << eventnumber << endl;
     	eventnumber++;
@@ -342,8 +371,11 @@ void dijet_calo_analysis_with_unfolding() {
   			float et_towards = 0;
   			float et_transverse = 0;
   			float et_away = 0;
+  			int ntopo_towards[] = {0,0,0,0,0,0};
+  			int ntopo_transverse[] = {0,0,0,0,0,0};
+  			int ntopo_away[] = {0,0,0,0,0,0};
 
-  			if (!topoclusters) {
+  			if (!clusters) {
 	  			for (int i = 0; i < emcaln; i++) {
 	  				TVector3 em;
 	  				em.SetPtEtaPhi(emcale[i]/cosh(emcaleta[i]),emcaleta[i],emcalphi[i]);
@@ -402,12 +434,33 @@ void dijet_calo_analysis_with_unfolding() {
 	  				h_ue_2D_total->Fill(cluster_eta[i],dphi,cluster_e[i]/cosh(cluster_eta[i]));
 	  				if (fabs(dphi) < M_PI/3.0) {
 	  					et_towards += cluster_e[i]/cosh(cluster_eta[i]);
+	  					for (int j = 0; j < 6; j++) {
+	  						if (cluster_e[i] > float(topo_thresholds[j]/1000.0)) {
+	  							ntopo_towards[j] += 1;
+	  							h_topo_towards[j]->Fill(cluster_e[i]/cosh(cluster_eta[i]));
+	  							h_2D_topo_towards[j]->Fill(cluster_eta[i],dphi,cluster_e[i]/cosh(cluster_eta[i]));
+	  						}
+	  					}
 	  					h_ue_2D_towards->Fill(cluster_eta[i],dphi,cluster_e[i]/cosh(cluster_eta[i]));
 	  				} else if (fabs(dphi) > M_PI/3.0 && fabs(dphi) < (2.0*M_PI)/3.0) {
 						et_transverse += cluster_e[i]/cosh(cluster_eta[i]);
+	  					for (int j = 0; j < 6; j++) {
+	  						if (cluster_e[i] > float(topo_thresholds[j]/1000.0)) {
+	  							ntopo_transverse[j] += 1;
+	  							h_topo_transverse[j]->Fill(cluster_e[i]/cosh(cluster_eta[i]));
+	  							h_2D_topo_transverse[j]->Fill(cluster_eta[i],dphi,cluster_e[i]/cosh(cluster_eta[i]));
+	  						}
+	  					}
 	  					h_ue_2D_transverse->Fill(cluster_eta[i],dphi,cluster_e[i]/cosh(cluster_eta[i]));
 	  				} else if (fabs(dphi) > (2.0*M_PI)/3.0) {
 	  					et_away += cluster_e[i]/cosh(cluster_eta[i]);
+	  					for (int j = 0; j < 6; j++) {
+	  						if (cluster_e[i] > float(topo_thresholds[j]/1000.0)) {
+	  							ntopo_away[j] += 1;
+	  							h_topo_away[j]->Fill(cluster_e[i]/cosh(cluster_eta[i]));
+	  							h_2D_topo_away[j]->Fill(cluster_eta[i],dphi,cluster_e[i]/cosh(cluster_eta[i]));
+	  						}
+	  					}
 	  					h_ue_2D_away->Fill(cluster_eta[i],dphi,cluster_e[i]/cosh(cluster_eta[i]));
 	  				}
 	  			}
@@ -420,6 +473,12 @@ void dijet_calo_analysis_with_unfolding() {
   			h_ue_towards->Fill(et_towards/(secteta*sectphi));
   			h_ue_transverse->Fill(et_transverse/(secteta*sectphi));
   			h_ue_away->Fill(et_away/(secteta*sectphi));
+
+  			for (int i = 0; i < 6; i++) {
+  				h_ntopo_towards[i]->Fill(ntopo_towards[i]);
+  				h_ntopo_transverse[i]->Fill(ntopo_transverse[i]);
+  				h_ntopo_away[i]->Fill(ntopo_away[i]);
+  			}
 
   			h_ue_xj_towards->Fill(sub.Pt()/lead.Pt(),et_towards);
   			h_ue_xj_transverse->Fill(sub.Pt()/lead.Pt(),et_transverse);
@@ -487,7 +546,7 @@ void dijet_calo_analysis_with_unfolding() {
 		  				h_truth_vs_calib->Fill(truth_et_transverse, calib_et_transverse);
 		  				h_ue_corr_pt->Fill(lead.Pt(), calib_et_transverse/truth_et_transverse);
 		  				h_ue_corr_xj->Fill(sub.Pt()/lead.Pt(), calib_et_transverse/truth_et_transverse);
-		  				h_ue_corr_pt_2D->Fill(lead.Pt(), calib_et_transverse/truth_et_transverse);
+		  				//h_ue_corr_pt_2D->Fill(lead.Pt(), calib_et_transverse/truth_et_transverse);
 		  				h_ue_corr_xj_2D->Fill(sub.Pt()/lead.Pt(), calib_et_transverse/truth_et_transverse);
 		  				h_calib_truth_truth->Fill(truth_et_transverse, calib_et_transverse/truth_et_transverse);
 		  			}
@@ -510,6 +569,12 @@ void dijet_calo_analysis_with_unfolding() {
   	h_ue_2D_towards->Scale(1.0/(events*deltaeta*deltaphi));
   	h_ue_2D_transverse->Scale(1.0/(events*deltaeta*deltaphi));
   	h_ue_2D_away->Scale(1.0/(events*deltaeta*deltaphi));
+
+  	for (int i = 0; i < 6; i++) {
+  		h_2D_topo_towards[i]->Scale(1.0/(events*deltaeta*deltaphi));
+  		h_2D_topo_transverse[i]->Scale(1.0/(events*deltaeta*deltaphi));
+  		h_2D_topo_away[i]->Scale(1.0/(events*deltaeta*deltaphi));
+  	}
 
   	h_ue_xj_towards->Scale(1.0/(secteta*sectphi));
   	h_ue_xj_transverse->Scale(1.0/(secteta*sectphi));

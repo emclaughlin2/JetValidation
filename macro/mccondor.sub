@@ -1,5 +1,5 @@
 executable = JetVal.sh
-arguments = 0 $(Process) 1 runlist2.txt run15 waveform
+arguments = 100 $(Process) 1 runlist2.txt run15 waveform
 output = output_logs/mc_output_$(Process).out
 request_memory = 4GB
 when_to_transfer_output = ON_EXIT
@@ -7,4 +7,4 @@ error			= output_logs/mc_error_$(Process).err
 log = /tmp/egm2153_$(Process).log
 PeriodicHold = (NumJobStarts>=1 && JobStatus == 1)
 concurrency_limits=CONCURRENCY_LIMIT_DEFAULT:100
-queue 1000
+queue 10

@@ -63,6 +63,7 @@ JetValidation::JetValidation(const std::string& recojetname, const std::string& 
   , m_doTruthJets(0)
   , m_doTruth(0)
   , m_doTowers(0)
+  , m_doEmcalClusters(0)
   , m_doTopoclusters(0)
   , m_doSeeds(0)
   , m_T(nullptr)
@@ -180,6 +181,13 @@ int JetValidation::Init(PHCompositeNode *topNode)
     m_T->Branch("ohcaltime",m_ohcaltime,"ohcaltime[ohcaln]/F");
   }
 
+  if(m_doEmcalClusters) {
+    m_T->Branch("emcal_clsmult",&m_emcal_clsmult,"emcal_clsmult/I");
+    m_T->Branch("emcal_cluster_e",m_emcal_cluster_e,"emcal_cluster_e[emcal_clsmult]/F");
+    m_T->Branch("emcal_cluster_eta",m_emcal_cluster_eta,"emcal_cluster_eta[emcal_clsmult]/F");
+    m_T->Branch("emcal_cluster_phi",m_emcal_cluster_phi,"emcal_cluster_phi[emcal_clsmult]/F");
+  }
+
   if(m_doTopoclusters) {
     m_T->Branch("clsmult",&m_clsmult,"clsmult/I");
     m_T->Branch("cluster_e",m_cluster_e,"cluster_e[clsmult]/F");
@@ -287,7 +295,7 @@ int JetValidation::process_event(PHCompositeNode *topNode)
       m_zvtx = vtx->get_z();
     }
 
-    if (fabs(m_zvtx) > 30) {
+    if (fabs(m_zvtx) > 30 || std::isnan(m_zvtx)) {
       return Fun4AllReturnCodes::EVENT_OK;
     }
 
@@ -320,6 +328,14 @@ int JetValidation::process_event(PHCompositeNode *topNode)
   if (m_doTopoclusters && !topoclusters) {
         std::cout
     <<"MyJetAnalysis::process_event - Error can not find topoclusters "
+    << std::endl;
+  exit(-1);
+  }
+
+  RawClusterContainer *emcalclusters = findNode::getClass<RawClusterContainer>(topNode,"CLUSTERINFO_CEMC");
+  if (m_doEmcalClusters && !emcalclusters) {
+      std::cout
+    <<"MyJetAnalysis::process_event - Error can not find EMCal clusters "
     << std::endl;
   exit(-1);
   }
@@ -541,6 +557,21 @@ int JetValidation::process_event(PHCompositeNode *topNode)
       }
     }
   }
+  if (m_doEmcalClusters) {
+    if (emcalclusters) {
+      RawClusterContainer::Map clusterMap = emcalclusters->getClustersMap();
+      m_emcal_clsmult = 0;
+      for(auto entry : clusterMap){
+        RawCluster* cluster = entry.second;
+        CLHEP::Hep3Vector origin(0, 0, m_zvtx);
+        m_emcal_cluster_e[m_emcal_clsmult] = cluster->get_energy();
+        m_emcal_cluster_eta[m_emcal_clsmult] = RawClusterUtility::GetPseudorapidity(*cluster, origin);
+        m_emcal_cluster_phi[m_emcal_clsmult] = RawClusterUtility::GetAzimuthAngle(*cluster, origin);
+        m_emcal_clsmult++;
+        if (m_emcal_clsmult == 10000) { break; }
+      } 
+    }
+  }
   if (m_doTopoclusters) {
     if (topoclusters) {
       RawClusterContainer::Map clusterMap = topoclusters->getClustersMap();
@@ -675,6 +706,7 @@ int JetValidation::ResetEvent(PHCompositeNode *topNode)
   m_ihcaln = 0;
   m_ohcaln = 0;
   m_clsmult = 0;
+  m_emcal_clsmult = 0;
 
   for (int i = 0; i < 24576; i++) {
     m_emcale[i] = 0;
@@ -719,6 +751,9 @@ int JetValidation::ResetEvent(PHCompositeNode *topNode)
     m_cluster_e[i] = 0;
     m_cluster_eta[i] = 0;
     m_cluster_phi[i] = 0;
+    m_emcal_cluster_e[i] = 0;
+    m_emcal_cluster_eta[i] = 0;
+    m_emcal_cluster_phi[i] = 0;
   }
 
   return Fun4AllReturnCodes::EVENT_OK;
