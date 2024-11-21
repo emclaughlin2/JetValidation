@@ -37,7 +37,7 @@ using namespace std;
 R__LOAD_LIBRARY(/sphenix/user/egm2153/calib_study/JetValidation/analysis/roounfold/libRooUnfold.so)
 
 bool isInRange(float truthJetPt, float mcWeight);
-void getLeadSubleadJet(std::vector<float> *pt, int &ind_lead, int &ind_sub);
+void getLeadSubleadJet(std::vector<float> *pt, std::vector<float> *eta, int &ind_lead, int &ind_sub);
 
 void jet_pt_unfolding() {
 	
@@ -45,7 +45,11 @@ void jet_pt_unfolding() {
   	TH1F* h_pass_deltaphi = new TH1F("h_pass_deltaphi","",125,-2*M_PI,2*M_PI);
   	TH1F* h_pass_xj = new TH1F("h_pass_xj","",20,0,1);
   	TH1F* h_pass_spectra = new TH1F("h_pass_spectra","",50,0,50);
-  	TH2F* h_aj_ptavg = new TH2F("h_aj_ptavg","",100,0,100,100,0,1);
+  	TH2F* h_pass_aj_ptavg = new TH2F("h_pass_aj_ptavg","",100,0,100,100,0,1);
+  	TH1F* h_pass_truth_deltaphi = new TH1F("h_pass_truth_deltaphi","",125,-2*M_PI,2*M_PI);
+  	TH1F* h_pass_truth_xj = new TH1F("h_pass_truth_xj","",20,0,1);
+  	TH1F* h_pass_truth_spectra = new TH1F("h_pass_truth_spectra","",50,0,50);
+  	TH2F* h_pass_truth_aj_ptavg = new TH2F("h_pass_truth_aj_ptavg","",100,0,100,100,0,1);
   	TProfile* jes_ratio = new TProfile("jes_ratio","",50,0,50);
 
   	// should create unfolding histograms and response matrices here
@@ -63,7 +67,8 @@ void jet_pt_unfolding() {
    	bool topoclusters = true;
    	bool applyCorr = true;
    	float dRMax = 0.3;
-   	float ptunfoldmin = 20;
+   	float leadptmin = 20;
+   	float subptmin = 15;
 
   	//defining Meas and Truth Histograms
     TH1D* hMeasPT = new TH1D("hMeasPT","",ptbins,ptmin,ptmax);
@@ -150,97 +155,109 @@ void jet_pt_unfolding() {
   		if (isnan(zvtx)) { continue; }
   		if (zvtx < -30 || zvtx > 30) { continue; }
   		if (negJet) { continue; }
-  		if (nJet < 2) { continue; }
 
-  		int ind_lead = 0;
-  		int ind_sub = 0;
-  		getLeadSubleadJet(pt, ind_lead, ind_sub);
+		for (int i = 0; i < truthEta->size();) {
+	        if (fabs(truthEta->at(i)) > 0.7) {
+	            truthEta->erase(truthEta->begin() + i);
+	            truthPt->erase(truthPt->begin() + i);
+	            truthE->erase(truthE->begin() + i);
+	            truthPhi->erase(truthPhi->begin() + i);
+	        } else {
+	            ++i;
+	        }
+	    }
+  		int nTruth = truthPt->size();
 
-  		if (fabs(eta->at(ind_lead)) > 0.7 || fabs(eta->at(ind_sub)) > 0.7) { continue; }
-  		if (pt->at(ind_lead) < 12 || pt->at(ind_sub) < 7) { continue; }
+  		int ind_truth_lead = -1;
+	    int ind_truth_sub = -1;
+	    int ind_lead = -1;
+  		int ind_sub = -1;
 
-  		TVector3 lead, sub;
-  		lead.SetPtEtaPhi(pt->at(ind_lead), eta->at(ind_lead), phi->at(ind_lead));
-  		sub.SetPtEtaPhi(pt->at(ind_sub), eta->at(ind_sub), phi->at(ind_sub));
+  		if (nJet < 2 && nTruth < 2) {
+  			continue;
+  		}
 
-  		// require deltaphi > 2.75 (7pi/8)
-  		// transverse region is [pi/3,2pi/3] from leading jet 
-  		if (fabs(lead.DeltaPhi(sub)) > 2.75) {
+		TVector3 lead, sub;
+  		if (nJet >= 2) {
+  			getLeadSubleadJet(pt, eta, ind_lead, ind_sub);	
+  			lead.SetPtEtaPhi(pt->at(ind_lead)*correction->Eval(pt->at(ind_lead)), eta->at(ind_lead), phi->at(ind_lead));
+  			sub.SetPtEtaPhi(pt->at(ind_sub)*correction->Eval(pt->at(ind_sub)), eta->at(ind_sub), phi->at(ind_sub));
+  		} else {
+  			lead.SetPtEtaPhi(0,0,0);
+  			sub.SetPtEtaPhi(0,0,0);
+  		}
+
+		TVector3 truthlead, truthsub;
+  		if (nTruth >= 2) {
+  			getLeadSubleadJet(truthPt, truthEta, ind_truth_lead, ind_truth_sub);
+  			truthlead.SetPtEtaPhi(truthPt->at(ind_truth_lead), eta->at(ind_truth_lead), phi->at(ind_truth_lead));
+  			truthsub.SetPtEtaPhi(truthPt->at(ind_truth_sub), eta->at(ind_truth_sub), phi->at(ind_truth_sub));
+  		} else {
+  			truthlead.SetPtEtaPhi(0,0,0);
+  			truthsub.SetPtEtaPhi(0,0,0);
+  		}
+
+  		if ((nJet >= 2 && lead.Pt() > leadptmin && sub.Pt() > subptmin && fabs(lead.DeltaPhi(sub)) > 2.75) || (nTruth >= 2 && truthlead.Pt() > leadptmin && truthsub.Pt() > subptmin && fabs(truthlead.DeltaPhi(truthsub)) > 2.75)) {
   			double  choice = Random.Rndm();
-
   			h_pass_deltaphi->Fill(lead.DeltaPhi(sub));
-  			h_pass_xj->Fill(sub.Pt()/lead.Pt());
-  			h_pass_spectra->Fill(lead.Pt());
-  			h_pass_spectra->Fill(sub.Pt());
-  			h_aj_ptavg->Fill((lead.Pt()+sub.Pt())/2.0, (lead.Pt()-sub.Pt())/(lead.Pt()+sub.Pt()));
-   
-	    	int ind_truth_lead = 0;
-	    	int ind_truth_sub = 0;
-	    	getLeadSubleadJet(truthPt, ind_truth_lead, ind_truth_sub);
+			h_pass_xj->Fill(sub.Pt()/lead.Pt());
+			h_pass_spectra->Fill(lead.Pt());
+			h_pass_spectra->Fill(sub.Pt());
+			h_pass_aj_ptavg->Fill((lead.Pt()+sub.Pt())/2.0, (lead.Pt()-sub.Pt())/(lead.Pt()+sub.Pt()));
+  			
+  			h_pass_truth_deltaphi->Fill(truthlead.DeltaPhi(truthsub));
+			h_pass_truth_xj->Fill(truthsub.Pt()/truthlead.Pt());
+			h_pass_truth_spectra->Fill(truthlead.Pt());
+			h_pass_truth_spectra->Fill(truthsub.Pt());
+			h_pass_truth_aj_ptavg->Fill((truthlead.Pt()+truthsub.Pt())/2.0, (truthlead.Pt()-truthsub.Pt())/(truthlead.Pt()+truthsub.Pt()));
 
-	    	TVector3 truth;
-	  		truth.SetPtEtaPhi(truthPt->at(ind_truth_lead), truthEta->at(ind_truth_lead), truthPhi->at(ind_truth_lead));
-
-	      	bool found_match = false;
-			for(int i = 0; i < nJet; i++) {
-				TVector3 reco;
-				if (applyCorr) {
-					reco.SetPtEtaPhi(pt->at(i)*correction->Eval(pt->at(i)), eta->at(i), eta->at(i));
-				} else {
-					reco.SetPtEtaPhi(pt->at(i), eta->at(i), eta->at(i));
-				}
-	  			if (truth.DeltaR(reco) < dRMax && truth.Pt() > ptunfoldmin && reco.Pt() > ptunfoldmin) {
-	  				hMeasPT->Fill(reco.Pt());
-	  				hTruthPT->Fill(truth.Pt());
-	  				resp_full->Fill(reco.Pt(),truth.Pt());
-	  				jes_ratio->Fill(truth.Pt(),reco.Pt()/truth.Pt());
-	  				found_match = true;
+  			if ((nJet >= 2 && lead.Pt() > leadptmin && sub.Pt() > subptmin && fabs(lead.DeltaPhi(sub)) > 2.75) && (nTruth >= 2 && truthlead.Pt() > leadptmin && truthsub.Pt() > subptmin && fabs(truthlead.DeltaPhi(truthsub)) > 2.75)) {
+  				if (truthlead.DeltaR(lead) < dRMax && truthsub.DeltaR(sub) < dRMax) { // should this match be both the leading and subleading? 
+  					// MATCH 
+  					hMeasPT->Fill(lead.Pt());
+	  				hTruthPT->Fill(truthlead.Pt());
+	  				resp_full->Fill(lead.Pt(),truthlead.Pt());
+	  				jes_ratio->Fill(truthlead.Pt(),lead.Pt()/truthlead.Pt());
 	  				if (choice > 0.5) {
-	  					hTruthPTHalf->Fill(truth.Pt());
-	  					resp_half->Fill(reco.Pt(),truth.Pt());
+	  					hTruthPTHalf->Fill(truthlead.Pt());
+	  					resp_half->Fill(lead.Pt(),truthlead.Pt());
 	  				} else {
-	  					hMeasPTHalf->Fill(reco.Pt());
+	  					hMeasPTHalf->Fill(lead.Pt());
 	  				}
-	  				break;
-	  			} else if (truth.DeltaR(reco) < dRMax && truth.Pt() > ptunfoldmin) {
-	  				hTruthPT->Fill(truth.Pt());
-	  				resp_full->Miss(truth.Pt());
-	  				found_match = true;
-	  				if (choice > 0.5) {
-	  					hTruthPTHalf->Fill(truth.Pt());
-	  					resp_half->Miss(truth.Pt());
-	  				}
-	  				break;
-	  			} else if (truth.DeltaR(reco) < dRMax && lead.Pt() > ptunfoldmin) {
-	  				hMeasPT->Fill(reco.Pt());
-	  				resp_full->Fake(reco.Pt());
-	  				found_match = true;
-	  				if (choice > 0.5) {
-	  					resp_half->Fake(reco.Pt());
-	  				} else {
-	  					hMeasPTHalf->Fill(reco.Pt());
-	  				}
-	  				break;
-	  			}
-			} 
-			if (!found_match && truth.Pt() > ptunfoldmin) {
-  				hTruthPT->Fill(truth.Pt());
-	  			resp_full->Miss(truth.Pt());
-	  			found_match = true;
-	  			if (choice > 0.5) {
-	  				hTruthPTHalf->Fill(truth.Pt());
-	  				resp_half->Miss(truth.Pt());
-	  			}
-			} else if (!found_match && lead.Pt() > ptunfoldmin) {
-				resp_full->Fake(lead.Pt());
-  				hMeasPT->Fill(lead.Pt());
-  				if (choice > 0.5) {
-  					resp_half->Fake(lead.Pt());
   				} else {
-  					hMeasPTHalf->Fill(lead.Pt());
+  					// FAKE AND MISS
+  					hTruthPT->Fill(truthlead.Pt());
+		  			resp_full->Miss(truthlead.Pt());
+		  			if (choice > 0.5) {
+		  				hTruthPTHalf->Fill(truthlead.Pt());
+		  				resp_half->Miss(truthlead.Pt());
+		  			}
+		  			hMeasPT->Fill(lead.Pt());
+	  				resp_full->Fake(lead.Pt());
+	  				if (choice > 0.5) {
+	  					resp_half->Fake(lead.Pt());
+	  				} else {
+	  					hMeasPTHalf->Fill(lead.Pt());
+	  				}
   				}
-			}   
-
+	  		} else if (nJet >= 2 && lead.Pt() > leadptmin && sub.Pt() > subptmin && fabs(lead.DeltaPhi(sub)) > 2.75) {
+	  			// FAKE
+	  			hMeasPT->Fill(lead.Pt());
+	  			resp_full->Fake(lead.Pt());
+	  			if (choice > 0.5) {
+	  				resp_half->Fake(lead.Pt());
+	  			} else {
+	  				hMeasPTHalf->Fill(lead.Pt());
+	  			}
+	  		} else if (nTruth >= 2 && truthlead.Pt() > leadptmin && truthsub.Pt() > subptmin && fabs(truthlead.DeltaPhi(truthsub)) > 2.75) {
+	  			// MISS
+	  			hTruthPT->Fill(truthlead.Pt());
+	  			resp_full->Miss(truthlead.Pt());
+	  			if (choice > 0.5) {
+	  				hTruthPTHalf->Fill(truthlead.Pt());
+	  				resp_half->Miss(truthlead.Pt());
+	  			}
+	  		}
   			events++;
   		}
 
@@ -263,7 +280,11 @@ void jet_pt_unfolding() {
   	h_pass_deltaphi->Write();
   	h_pass_xj->Write();
   	h_pass_spectra->Write();
-  	h_aj_ptavg->Write();
+  	h_pass_aj_ptavg->Write();
+  	h_pass_truth_deltaphi->Write();
+  	h_pass_truth_xj->Write();
+  	h_pass_truth_spectra->Write();
+  	h_pass_aj_ptavg->Write();
   	jes_ratio->Write();
     hMeasPT->Write();
     hTruthPT->Write();
@@ -309,13 +330,16 @@ bool isInRange(float truthJetPt, float mcWeight)
   return false;
 }
  
-void getLeadSubleadJet(std::vector<float> *pt, int &ind_lead, int &ind_sub)
+void getLeadSubleadJet(std::vector<float> *pt, std::vector<float> *eta, int &ind_lead, int &ind_sub)
 {
-  	float temp_lead = 0;
-  	float temp_sub = 0;
+  	float temp_lead = -1;
+  	float temp_sub = -1;
+  	if (pt->size() < 2 || eta->size() < 2 || pt->size() != eta->size()) { std::cout << "PT and ETA vectors smaller than 2 or not equal, something is wrong!" << std::endl; return; }
+
   	for (int i = 0; i < pt->size(); i++) {
+  		//if (fabs(eta->at(i)) > 0.7) { continue; }
   		if (pt->at(i) > temp_lead) {
-  			if (temp_lead != 0) {
+  			if (temp_lead != -1) {
   				temp_sub = temp_lead;
   				ind_sub = ind_lead;
   			}
