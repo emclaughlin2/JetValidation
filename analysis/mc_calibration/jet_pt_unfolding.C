@@ -241,57 +241,6 @@ void jet_pt_unfolding() {
   				}
 			}   
 
-  			/*
-  			for (int i = 0; i < nTruthJet; i++) {
-  				TVector3 truth;
-  				truth.SetPtEtaPhi(truthPt->at(i), truthEta->at(i), truthPhi->at(i));
-  				if (truth.DeltaR(lead) < 0.3 && truth.Pt() > 20.0 && lead.Pt() > 20.0) {
-  					hMeasPT->Fill(lead.Pt());
-  					hTruthPT->Fill(truth.Pt());
-  					resp_full->Fill(lead.Pt(),truth.Pt());
-  					jes_ratio->Fill(truth.Pt(),lead.Pt()/truth.Pt());
-  					found_truth = true;
-  					if (choice > 0.5) {
-  						hTruthPTHalf->Fill(truth.Pt());
-  						resp_half->Fill(lead.Pt(),truth.Pt());
-  					} else {
-  						hMeasPTHalf->Fill(lead.Pt());
-  					}
-  					break;
-  				}
-  				else if (truth.DeltaR(lead) < 0.3 && truth.Pt() > 20.0) {
-  					hTruthPT->Fill(truth.Pt());
-  					resp_full->Miss(truth.Pt());
-  					found_truth = true;
-  					if (choice > 0.5) {
-  						hTruthPTHalf->Fill(truth.Pt());
-  						resp_half->Miss(truth.Pt());
-  					}
-  					break;
-  				}
-  				else if (truth.DeltaR(lead) < 0.3 && lead.Pt() > 20.0) {
-  					hMeasPT->Fill(lead.Pt());
-  					resp_full->Fake(lead.Pt());
-  					found_truth = true;
-  					if (choice > 0.5) {
-  						resp_half->Fake(lead.Pt());
-  					} else {
-  						hMeasPTHalf->Fill(lead.Pt());
-  					}
-  					break;
-  				}
-  			}
-  			if (!found_truth && lead.Pt() > 20.0) {
-  				resp_full->Fake(lead.Pt());
-  				hMeasPT->Fill(lead.Pt());
-  				if (choice > 0.5) {
-  					resp_half->Fake(lead.Pt());
-  				} else {
-  					hMeasPTHalf->Fill(lead.Pt());
-  				}
-  			}
-  			*/
-
   			events++;
   		}
 
