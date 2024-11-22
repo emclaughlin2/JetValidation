@@ -50,7 +50,6 @@ void jet_pt_unfolding() {
     TH1F* h_pass_truth_xj = new TH1F("h_pass_truth_xj","",20,0,1);
     TH1F* h_pass_truth_spectra = new TH1F("h_pass_truth_spectra","",50,0,50);
     TH2F* h_pass_truth_aj_ptavg = new TH2F("h_pass_truth_aj_ptavg","",100,0,100,100,0,1);
-    TProfile* jes_ratio = new TProfile("jes_ratio","",50,0,50);
 
     // should create unfolding histograms and response matrices here
     //Needed for gaus function
@@ -59,9 +58,8 @@ void jet_pt_unfolding() {
     //random number in each event
     TRandom3 Random;
 
-    float ptmin = 15;
-    float ptmax = 45;
-    float ptbins = (ptmax - ptmin) / 2.0;
+    double ptbins[] = {15,16,17,18,20,22,24,26,28,31,35,40,50};
+    int nptbins = sizeof(ptbins) / sizeof(ptbins[0]) - 1;
     bool doUnfolding = true;
     bool sim = true;
     bool topoclusters = true;
@@ -72,23 +70,23 @@ void jet_pt_unfolding() {
 
     // need to adjust ptbins to have equally significant bins 
     // need to have a much lower pT to start 
+    TProfile* jes_ratio = new TProfile("jes_ratio","",nptbins,ptbins);
 
     //defining Meas and Truth Histograms
-    TH1D* hMeasPT = new TH1D("hMeasPT","",ptbins,ptmin,ptmax);
-    TH1D* hTruthPT = new TH1D("hTruthPT","",ptbins,ptmin,ptmax);
+    TH1D* hMeasPT = new TH1D("hMeasPT","",nptbins,ptbins);
+    TH1D* hTruthPT = new TH1D("hTruthPT","",nptbins,ptbins);
 
     // closure test histograms 
-    TH1D* hMeasPTHalf = new TH1D("hMeasPTHalf","",ptbins,ptmin,ptmax);
-    TH1D* hTruthPTHalf = new TH1D("hTruthPTHalf","",ptbins,ptmin,ptmax);
+    TH1D* hMeasPTHalf = new TH1D("hMeasPTHalf","",nptbins,ptbins);
+    TH1D* hTruthPTHalf = new TH1D("hTruthPTHalf","",nptbins,ptbins);
 
     //making response matrices
-    RooUnfoldResponse *resp_full = new RooUnfoldResponse(ptbins,ptmin,ptmax,ptbins,ptmin,ptmax,"resp_full","");
-    RooUnfoldResponse *resp_half = new RooUnfoldResponse(ptbins,ptmin,ptmax,ptbins,ptmin,ptmax,"resp_half","");
-    RooUnfoldResponse *resp_test = new RooUnfoldResponse(ptbins,ptmin,ptmax,ptbins,ptmin,ptmax,"resp_test","");
+    RooUnfoldResponse *resp_full = new RooUnfoldResponse(hMeasPT,hTruthPT,"resp_full","");
+    RooUnfoldResponse *resp_half = new RooUnfoldResponse(hMeasPTHalf,hTruthPTHalf,"resp_half","");
 
     //histograms for errors
-    TH2D* hResponseTruthMeasFull = new TH2D("hResponseTruthMeasFull","",ptbins,ptmin,ptmax,ptbins,ptmin,ptmax);
-    TH2D* hResponseTruthMeasHalf = new TH2D("hResponseTruthMeasHalf","",ptbins,ptmin,ptmax,ptbins,ptmin,ptmax);
+    TH2D* hResponseTruthMeasFull = new TH2D("hResponseTruthMeasFull","",nptbins,ptbins,nptbins,ptbins);
+    TH2D* hResponseTruthMeasHalf = new TH2D("hResponseTruthMeasHalf","",nptbins,ptbins,nptbins,ptbins);
 
     TChain chain("T");
     const char* inputDirectory = "/sphenix/tg/tg01/jets/egm2153/JetValOutput/";
@@ -273,6 +271,7 @@ void jet_pt_unfolding() {
 
     }
 
+    // unfolding 
     RooUnfoldBayes *full_unfold = new RooUnfoldBayes(resp_full,hMeasPT,4);
     //full_unfold->SetNToys(100);
     TH1D*  hRecoPT = (TH1D*)full_unfold->Hreco();
@@ -282,6 +281,7 @@ void jet_pt_unfolding() {
     TH1D* hRecoPTHalf = (TH1D*)half_unfold->Hreco();
     hRecoPTHalf->SetName("hRecoPTHalf");
     
+    // output histograms 
     string filename = "jet_pt_unfolding.root";
     std::cout << filename << std::endl;
     TFile *out = new TFile(filename.c_str(),"RECREATE");
@@ -306,7 +306,6 @@ void jet_pt_unfolding() {
     hResponseTruthMeasHalf->Write();
     resp_full->Write();
     resp_half->Write();
-    resp_test->Write();
     out->Close();
 
 }
