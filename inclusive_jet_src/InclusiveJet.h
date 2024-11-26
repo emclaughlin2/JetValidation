@@ -124,15 +124,12 @@ class InclusiveJet : public SubsysReco
   int m_nTruthJet;
   int m_nJet;
   float m_totalCalo;
-  int m_centrality;
-  float m_impactparam;
   float m_zvtx;
 
   //!trigger info
   std::vector<int> m_triggerVector;
 
   //! reconstructed jets
-  std::vector<int> m_id;
   std::vector<int> m_nComponent;
   std::vector<float> m_eta;
   std::vector<float> m_phi;
@@ -140,7 +137,6 @@ class InclusiveJet : public SubsysReco
   std::vector<float> m_pt;
 
   //! truth jets
-  std::vector<int> m_truthID;
   std::vector<int> m_truthNComponent;
   std::vector<float> m_truthEta;
   std::vector<float> m_truthPhi;

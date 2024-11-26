@@ -58,7 +58,7 @@ InclusiveJet::InclusiveJet(const std::string& recojetname, const std::string& tr
   , m_recoJetName(recojetname)
   , m_truthJetName(truthjetname)
   , m_outputFileName(outputfilename)
-  , m_etaRange(-1, 1)
+  , m_etaRange(-0.7, 0.7)
   , m_ptRange(5, 100)
   , m_doTruthJets(0)
   , m_doTruth(0)
@@ -70,13 +70,11 @@ InclusiveJet::InclusiveJet(const std::string& recojetname, const std::string& tr
   , m_event(-1)
   , m_nTruthJet(-1)
   , m_nJet(-1)
-  , m_id()
   , m_nComponent()
   , m_eta()
   , m_phi()
   , m_e()
   , m_pt()
-  , m_truthID()
   , m_truthNComponent()
   , m_truthEta()
   , m_truthPhi()
@@ -114,10 +112,7 @@ int InclusiveJet::Init(PHCompositeNode *topNode)
   m_T = new TTree("T", "MyJetAnalysis Tree");
   m_T->Branch("m_event", &m_event, "event/I");
   m_T->Branch("nJet", &m_nJet, "nJet/I");
-  m_T->Branch("cent", &m_centrality);
   m_T->Branch("zvtx", &m_zvtx);
-  m_T->Branch("b", &m_impactparam);
-  m_T->Branch("id", &m_id);
   m_T->Branch("nComponent", &m_nComponent);
   m_T->Branch("triggerVector", &m_triggerVector);
 
@@ -128,7 +123,6 @@ int InclusiveJet::Init(PHCompositeNode *topNode)
 
   if(m_doTruthJets){
     m_T->Branch("nTruthJet", &m_nTruthJet);
-    m_T->Branch("truthID", &m_truthID);
     m_T->Branch("truthNComponent", &m_truthNComponent);
     m_T->Branch("truthEta", &m_truthEta);
     m_T->Branch("truthPhi", &m_truthPhi);
@@ -262,16 +256,6 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
 << std::endl;
       exit(-1);
     }
-
-  //centrality
-  CentralityInfo* cent_node = findNode::getClass<CentralityInfo>(topNode, "CentralityInfo");
-  if (!cent_node)
-    {
-      std::cout
-        << "MyJetAnalysis::process_event - Error can not find centrality node "
-        << std::endl;
-      exit(-1);
-    }
   
   //zvertex
   GlobalVertexMap *vertexmap = findNode::getClass<GlobalVertexMap>(topNode, "GlobalVertexMap");
@@ -340,29 +324,31 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
   exit(-1);
   }
 
-  //get the event centrality/impact parameter from HIJING
-  //m_centrality =  cent_node->get_centile(CentralityInfo::PROP::mbd_NS);
-  m_centrality = (int)(100*cent_node->get_centile(CentralityInfo::PROP::mbd_NS));
-  m_impactparam =  cent_node->get_quantity(CentralityInfo::PROP::bimp);
+  PHG4TruthInfoContainer *truthinfo = findNode::getClass<PHG4TruthInfoContainer>(topNode, "G4TruthInfo") 
+  if (m_doTruth && !truthinfo) {
+    std::cout << PHWHERE << "PHG4TruthInfoContainer node is missing, can't collect G4 truth particles"<< std::endl;
+    eturn Fun4AllReturnCodes::EVENT_OK;
+  }
 
   //get reco jets
   m_nJet = 0;
-
+  float leadpt = 0;
   for (auto jet : *jets)
     {
 
-      if(jet->get_pt() < 1) continue; // to remove noise jets
+      if(jet->get_pt() < 5) continue; // to remove noise jets
       if(jet->get_e() < 0) {
         return Fun4AllReturnCodes::EVENT_OK; // currently applied to deal with cold EMCal IB
       }
       if (fabs(jet->get_eta()) > 0.7) continue;
 
-      m_id.push_back(jet->get_id());
       m_nComponent.push_back(jet->size_comp());
       m_eta.push_back(jet->get_eta());
       m_phi.push_back(jet->get_phi());
       m_e.push_back(jet->get_e());
       m_pt.push_back(jet->get_pt());
+
+      if (m_pt.back() > leadpt) { leadpt = m_pt.back(); }
 
       float emcalE = 0;
       float ihcalE = 0;
@@ -398,6 +384,10 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
       m_nJet++;
     }
 
+    if (leadpt < 10.0) { 
+      return Fun4AllReturnCodes::EVENT_OK; 
+    }
+
   //get truth jets
   if(m_doTruthJets)
     {
@@ -410,7 +400,6 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
 	  bool eta_cut = (truthjet->get_eta() >= m_etaRange.first) and (truthjet->get_eta() <= m_etaRange.second);
 	  bool pt_cut = (truthjet->get_pt() >= m_ptRange.first) and (truthjet->get_pt() <= m_ptRange.second);
 	  if ((not eta_cut) or (not pt_cut)) continue;
-	  m_truthID.push_back(truthjet->get_id());
 	  m_truthNComponent.push_back(truthjet->size_comp());
 	  m_truthEta.push_back(truthjet->get_eta());
 	  m_truthPhi.push_back(truthjet->get_phi());
@@ -458,7 +447,7 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
 	    bool trig_decision = ((triggervec & 0x1U) == 0x1U);
       if (trig_decision) {
         m_triggerVector.push_back(i);
-        if (i >= 16 && i <= 23) { jettrig = true; }
+        if ((i >= 16 && i <= 23) || (i >= 32 && i <= 34)) { jettrig = true; }
       }
 	    triggervec = (triggervec >> 1U) & 0xffffffffU;
 	  }
@@ -473,7 +462,7 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
       int nchannels = 24576; 
       for(int i=0; i<nchannels; ++i) {
         TowerInfo *tower = EMtowers->get_tower_at_channel(i); //get EMCal tower
-        if(tower->get_isHot() || tower->get_isNoCalib() || tower->get_isNotInstr()) { continue; }
+        if(!tower->get_isGood()) { continue; }
         int key = EMtowers->encode_key(i);
         int etabin = EMtowers->getTowerEtaBin(key);
         int phibin = EMtowers->getTowerPhiBin(key);
@@ -501,7 +490,7 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
       int nchannels = 1536; 
       for(int i=0; i<nchannels; ++i) {
         TowerInfo *tower = IHtowers->get_tower_at_channel(i); //get IHCal tower
-        if(tower->get_isHot() || tower->get_isNoCalib() || tower->get_isNotInstr()) { continue; }
+        if(!tower->get_isGood()) { continue; }
         int key = IHtowers->encode_key(i);
         int etabin = IHtowers->getTowerEtaBin(key);
         int phibin = IHtowers->getTowerPhiBin(key);
@@ -526,7 +515,7 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
       int nchannels = 1536; 
       for(int i=0; i<nchannels; ++i) {
         TowerInfo *tower = OHtowers->get_tower_at_channel(i); //get OHCal tower
-        if(tower->get_isHot() || tower->get_isNoCalib() || tower->get_isNotInstr()) { continue; }
+        if(!tower->get_isGood()) { continue; }
         int key = OHtowers->encode_key(i);
         int etabin = OHtowers->getTowerEtaBin(key);
         int phibin = OHtowers->getTowerPhiBin(key);
@@ -578,44 +567,27 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
   }
 
   if (m_doTruth) {
-
-    PHHepMCGenEventMap *hepmceventmap = findNode::getClass<PHHepMCGenEventMap>(topNode, "PHHepMCGenEventMap");
-    if (!hepmceventmap) {
-      std::cout << PHWHERE << "HEPMC event map node is missing, can't collected HEPMC truth particles"<< std::endl;
-      return Fun4AllReturnCodes::EVENT_OK;
-    }
-    for (PHHepMCGenEventMap::ConstIter eventIter = hepmceventmap->begin(); eventIter != hepmceventmap->end(); ++eventIter) {
-    /// Get the event
-      PHHepMCGenEvent *hepmcevent = eventIter->second; 
-      // To fill TTree, require that the event be the primary event (embedding_id > 0)
-      if (hepmcevent && hepmcevent->get_embedding_id() == 1) {
-        /// Get the event characteristics, inherited from HepMC classes
-        HepMC::GenEvent *truthevent = hepmcevent->getEvent();
-        if (!truthevent) {
-          std::cout << PHWHERE << "no evt pointer under phhepmvgeneventmap found " << std::endl;
-          return Fun4AllReturnCodes::EVENT_OK;
-        }
-        //int process_id = truthevent->signal_process_id();
-        //std::cout << process_id << std::endl;
-        /// Loop over all the truth particles and get their information
-        truthpar_n = 0;
-        for (HepMC::GenEvent::particle_const_iterator iter = truthevent->particles_begin(); iter != truthevent->particles_end(); ++iter) {
-          if (!(*iter)->end_vertex() && (*iter)->status() == 1) {
-            truthpar_e[truthpar_n] = (*iter)->momentum().e();
-            double px = (*iter)->momentum().px();
-            double py = (*iter)->momentum().py();
-            double pz = (*iter)->momentum().pz();
-            truthpar_pt[truthpar_n] = sqrt(px*px+py*py);
-            truthpar_pz[truthpar_n] = pz;
-            truthpar_phi[truthpar_n]=atan2(py,px);
-            truthpar_eta[truthpar_n]=atanh(pz/sqrt(px*px+py*py+pz*pz));
-            truthpar_pid[truthpar_n]=(*iter)->pdg_id();
-            /// Fill the truth tree
-            truthpar_n++;
-          }
-        }
-        break;
-      } 
+    PHG4TruthInfoContainer::Range range = truthinfo->GetPrimaryParticleRange();
+    truthpar_n = 0;
+    for (PHG4TruthInfoContainer::ConstIterator iter = range.first; iter != range.second; ++iter) {
+      // Get truth particle
+      const PHG4Particle *truth = iter->second;
+      if (!truth) { std::cout << "missing particle" << std::endl; continue; }
+      if (!truthinfo->is_primary(truth)) continue;
+      /// Get this particles momentum, etc.
+      truthpar_pt[truthpar_n] = sqrt(truth->get_px() * truth->get_px() + truth->get_py() * truth->get_py());
+      truthpar_pz[truthpar_n] = truth->get_pz();
+      truthpar_e[truthpar_n] = truth->get_e();
+      truthpar_phi[truthpar_n] = atan2(truth->get_py(), truth->get_px());
+      truthpar_eta[truthpar_n] = atanh(truth->get_pz() / sqrt(truth->get_px()*truth->get_px()+truth->get_py()*truth->get_py()+truth->get_pz()*truth->get_pz()));
+      if (truthpar_eta[truthpar_n] != truthpar_eta[truthpar_n]) truthpar_eta[truthpar_n] = -999; // check for nans
+      truthpar_pid[truthpar_n] = truth->get_pid();
+      truthpar_n++;
+      if(truthpar_n > 99999)
+      {
+        if(_debug) cout << "More than 100000 truth particles!" << endl;
+        return Fun4AllReturnCodes::EVENT_OK;
+      }
     }
   }
   
@@ -629,14 +601,12 @@ int InclusiveJet::process_event(PHCompositeNode *topNode)
 int InclusiveJet::ResetEvent(PHCompositeNode *topNode)
 {
   //std::cout << "InclusiveJet::ResetEvent(PHCompositeNode *topNode) Resetting internal structures, prepare for next event" << std::endl;
-  m_id.clear();
   m_nComponent.clear();
   m_eta.clear();
   m_phi.clear();
   m_e.clear();
   m_pt.clear();
 
-  m_truthID.clear();
   m_truthNComponent.clear();
   m_truthEta.clear();
   m_truthPhi.clear();

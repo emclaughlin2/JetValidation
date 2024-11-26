@@ -88,6 +88,15 @@ void jet_pt_unfolding() {
     TH2D* hResponseTruthMeasFull = new TH2D("hResponseTruthMeasFull","",nptbins,ptbins,nptbins,ptbins);
     TH2D* hResponseTruthMeasHalf = new TH2D("hResponseTruthMeasHalf","",nptbins,ptbins,nptbins,ptbins);
 
+    //histograms and responses for inverse testing
+    TProfile* inverse_jes_ratio = new TProfile("inverse_jes_ratio","",nptbins,ptbins);
+    TH1D* hInverseMeasPT = new TH1D("hInverseMeasPT","",nptbins,ptbins);
+    TH1D* hInverseTruthPT = new TH1D("hInverseTruthPT","",nptbins,ptbins);
+    TH1D* hInverseMeasPTHalf = new TH1D("hInverseMeasPTHalf","",nptbins,ptbins);
+    TH1D* hInverseTruthPTHalf = new TH1D("hInverseTruthPTHalf","",nptbins,ptbins);
+    RooUnfoldResponse *inverse_resp_full = new RooUnfoldResponse(hInverseMeasPT,hInverseTruthPT,"inverse_resp_full","");
+    RooUnfoldResponse *inverse_resp_half = new RooUnfoldResponse(hInverseMeasPTHalf,hInverseTruthPTHalf,"inverse_resp_half","");
+
     TChain chain("T");
     const char* inputDirectory = "/sphenix/tg/tg01/jets/egm2153/JetValOutput/";
     TString wildcardPath = TString::Format("%ssim_truth_jet_output.root", inputDirectory);
@@ -266,13 +275,64 @@ void jet_pt_unfolding() {
                     resp_half->Miss(truthlead.Pt());
                 }
             }
+
+            // inverse unfolding testing 
+            if ((nJet >= 2 && lead.Pt() > leadptmin && sub.Pt() > subptmin && fabs(lead.DeltaPhi(sub)) > 2.75) && (nTruth >= 2 && truthlead.Pt() > leadptmin && truthsub.Pt() > subptmin && fabs(truthlead.DeltaPhi(truthsub)) > 2.75)) {
+                if (lead.DeltaR(truthlead) < dRMax && sub.DeltaR(truthsub) < dRMax) { // should this match be both the leading and subleading? 
+                    // MATCH 
+                    hInverseMeasPT->Fill(truthlead.Pt());
+                    hInverseTruthPT->Fill(lead.Pt());
+                    inverse_resp_full->Fill(truthlead.Pt(),lead.Pt());
+                    inverse_jes_ratio->Fill(lead.Pt(),truthlead.Pt()/lead.Pt());
+                    if (choice > 0.5) {
+                        hInverseTruthPTHalf->Fill(lead.Pt());
+                        inverse_resp_half->Fill(truthlead.Pt(),lead.Pt());
+                    } else {
+                        hInverseMeasPTHalf->Fill(truthlead.Pt());
+                    }
+                } else {
+                    // FAKE AND MISS
+                    hInverseTruthPT->Fill(lead.Pt());
+                    inverse_resp_full->Miss(lead.Pt());
+                    if (choice > 0.5) {
+                        hInverseTruthPTHalf->Fill(lead.Pt());
+                        inverse_resp_half->Miss(lead.Pt());
+                    }
+                    hInverseMeasPT->Fill(truthlead.Pt());
+                    inverse_resp_full->Fake(truthlead.Pt());
+                    if (choice > 0.5) {
+                        inverse_resp_half->Fake(truthlead.Pt());
+                    } else {
+                        hInverseMeasPTHalf->Fill(truthlead.Pt());
+                    }
+                }
+            } else if (nTruth >= 2 && truthlead.Pt() > leadptmin && truthsub.Pt() > subptmin && fabs(truthlead.DeltaPhi(truthsub)) > 2.75) {
+                // FAKE
+                hInverseMeasPT->Fill(truthlead.Pt());
+                inverse_resp_full->Fake(truthlead.Pt());
+                if (choice > 0.5) {
+                    inverse_resp_half->Fake(truthlead.Pt());
+                } else {
+                    hInverseMeasPTHalf->Fill(truthlead.Pt());
+                }
+            } else if (nJet >= 2 && lead.Pt() > leadptmin && sub.Pt() > subptmin && fabs(lead.DeltaPhi(sub)) > 2.75) {
+                // MISS
+                hInverseTruthPT->Fill(lead.Pt());
+                inverse_resp_full->Miss(lead.Pt());
+                if (choice > 0.5) {
+                    hInverseTruthPTHalf->Fill(lead.Pt());
+                    inverse_resp_half->Miss(lead.Pt());
+                }
+            }
+            // inverse unfolding testing 
+
             events++;
         }
 
     }
 
     // unfolding 
-    RooUnfoldBayes *full_unfold = new RooUnfoldBayes(resp_full,hMeasPT,4);
+    RooUnfoldBayes *full_unfold = new RooUnfoldBayes(resp_full,hMeasPT,1);
     //full_unfold->SetNToys(100);
     TH1D*  hRecoPT = (TH1D*)full_unfold->Hreco();
     hRecoPT->SetName("hRecoPT");
@@ -280,6 +340,15 @@ void jet_pt_unfolding() {
     RooUnfoldBayes *half_unfold = new RooUnfoldBayes(resp_half,hMeasPTHalf,4);
     TH1D* hRecoPTHalf = (TH1D*)half_unfold->Hreco();
     hRecoPTHalf->SetName("hRecoPTHalf");
+
+    // inverse unfolding
+    RooUnfoldBayes *inverse_full_unfold = new RooUnfoldBayes(inverse_resp_full,hInverseMeasPT,1);
+    TH1D*  hInverseRecoPT = (TH1D*)inverse_full_unfold->Hreco();
+    hInverseRecoPT->SetName("hInverseRecoPT");
+
+    RooUnfoldBayes *inverse_half_unfold = new RooUnfoldBayes(inverse_resp_half,hInverseMeasPTHalf,4);
+    TH1D* hInverseRecoPTHalf = (TH1D*)inverse_half_unfold->Hreco();
+    hInverseRecoPTHalf->SetName("hInverseRecoPTHalf");
     
     // output histograms 
     string filename = "jet_pt_unfolding.root";
@@ -302,10 +371,17 @@ void jet_pt_unfolding() {
     hMeasPTHalf->Write();
     hTruthPTHalf->Write();
     hRecoPTHalf->Write();
-    hResponseTruthMeasFull->Write();
-    hResponseTruthMeasHalf->Write();
     resp_full->Write();
     resp_half->Write();
+    inverse_jes_ratio->Write();
+    hInverseMeasPT->Write();
+    hInverseTruthPT->Write();
+    hInverseRecoPT->Write();
+    hInverseMeasPTHalf->Write();
+    hInverseTruthPTHalf->Write();
+    hInverseRecoPTHalf->Write();
+    inverse_resp_full->Write();
+    inverse_resp_half->Write();
     out->Close();
 
 }
